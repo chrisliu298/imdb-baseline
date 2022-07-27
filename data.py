@@ -25,7 +25,7 @@ class IMDBDataModule(LightningDataModule):
         train_data = load_dataset("imdb", split="train")
         test_data = load_dataset("imdb", split="test")
         # tokenization
-        if self.config.vocab_size != None:
+        if self.config.vocab_size != None:  # train a customized tokenizer
             tokenizer = Tokenizer(WordPiece(unk_token="[UNK]"))
             tokenizer.normalizer = normalizers.Sequence(
                 [NFD(), Lowercase(), StripAccents()]
@@ -64,7 +64,7 @@ class IMDBDataModule(LightningDataModule):
                 ),
             }
             self.vocab_size = tokenizer.get_vocab_size()
-        else:
+        else:  # use a bert pre-trained tokenizer
             self.tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
             encode = lambda x: self.tokenizer(
                 x,
@@ -78,16 +78,17 @@ class IMDBDataModule(LightningDataModule):
             self.vocab_size = self.tokenizer.vocab_size
 
     def setup(self, stage=None):
+        # download dataset
         train_data = load_dataset("imdb", split="train")
         test_data = load_dataset("imdb", split="test")
-
+        # extract input ids and attention masks (which are converted to BoolTensor format)
+        # https://pytorch.org/docs/stable/generated/torch.nn.Transformer.html#torch.nn.Transformer
         train_input_ids = self.train_encodings["input_ids"]
         train_attention_mask = self.train_encodings["attention_mask"].logical_not()
         test_input_ids = self.test_encodings["input_ids"]
         test_attention_mask = self.test_encodings["attention_mask"].logical_not()
         train_labels = torch.tensor(train_data["label"])
         test_labels = torch.tensor(test_data["label"])
-
         # split train/val
         train_dataset = TensorDataset(
             train_input_ids, train_attention_mask, train_labels

@@ -10,8 +10,14 @@ from torchmetrics.functional import accuracy
 
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, max_len=512):
-        super().__init__()
+    """
+    https://pytorch.org/tutorials/beginner/transformer_tutorial.html
+    """
+
+    def __init__(self, d_model, dropout=0.1, max_len=5000):
+        super(PositionalEncoding, self).__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
         pe = torch.zeros(max_len, d_model)
         position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
         div_term = torch.exp(
@@ -23,7 +29,8 @@ class PositionalEncoding(nn.Module):
         self.register_buffer("pe", pe)
 
     def forward(self, x):
-        return x + self.pe[: x.size(0), :]
+        x = x + self.pe[: x.size(0), :]
+        return self.dropout(x)
 
 
 class TransformerEncoderModel(pl.LightningModule):
@@ -33,7 +40,9 @@ class TransformerEncoderModel(pl.LightningModule):
         self.config = config
         self.embedding = nn.Embedding(self.config.vocab_size, self.config.embedding_dim)
         self.pos_embedding = PositionalEncoding(
-            self.config.embedding_dim, max_len=self.config.max_seq_len
+            self.config.embedding_dim,
+            dropout=self.config.dropout,
+            max_len=self.config.max_seq_len,
         )
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=self.config.embedding_dim,
@@ -48,6 +57,7 @@ class TransformerEncoderModel(pl.LightningModule):
         self.fc = nn.Linear(self.config.embedding_dim, self.config.output_size)
 
     def forward(self, x, padding_mask=None):
+        # generate src_mask
         mask = nn.Transformer.generate_square_subsequent_mask(
             self.config.max_seq_len
         ).to(self.device)
@@ -55,6 +65,7 @@ class TransformerEncoderModel(pl.LightningModule):
         x = self.embedding(x) * math.sqrt(self.config.embedding_dim)
         x = x.permute(1, 0, 2)
         x = self.pos_embedding(x)
+        # determine mask type
         if self.config.mask_type == "mask":
             padding_mask = None
         if self.config.mask_type == "padding_mask":
@@ -62,7 +73,8 @@ class TransformerEncoderModel(pl.LightningModule):
         if self.config.mask_type == "none":
             mask = padding_mask = None
         x = self.encoder(x, mask=mask, src_key_padding_mask=padding_mask)
-        x = x[-1, :, :]  # use the last hidden state
+        # use the last hidden state
+        x = x[-1, :, :]
         return self.fc(x)
 
     def evaluate(self, batch, stage=None):
@@ -76,6 +88,7 @@ class TransformerEncoderModel(pl.LightningModule):
         return loss, acc
 
     def on_train_start(self):
+        # log the number of parameters
         model_info = summary(self, input_size=(1, self.config.max_seq_len), verbose=0)
         self.log(
             "total_params",

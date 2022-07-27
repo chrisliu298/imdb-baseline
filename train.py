@@ -16,10 +16,14 @@ from pytorch_lightning.loggers import WandbLogger
 from data import IMDBDataModule
 from models import TransformerEncoderModel
 
+# Due to the issue described in
+# https://stackoverflow.com/questions/62691279/how-to-disable-tokenizers-parallelism-true-false-warning
+# we need to disable tokenizer parallelism to avoid warnings
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 def main():
+    # Parse command line arguments
     parser = argparse.ArgumentParser()
     # data
     parser.add_argument("--label_noise", type=float, default=0.0)
@@ -46,8 +50,11 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--wandb", action="store_true")
     parser.add_argument("--verbose", action="store_true")
+    # convert arg namespace to easydict for easier access
     config = EasyDict(vars(parser.parse_args()))
+    # seed for reproducibility
     seed_everything(config.seed)
+    # mute everything
     if not config.verbose:
         os.environ["WANDB_SILENT"] = "True"
         warnings.filterwarnings("ignore")
@@ -56,9 +63,11 @@ def main():
     config.dataset = config.project_id.split("-")[1]
     config.model = config.project_id.split("-")[2]
     config.output_size = 2
+    # setup data module, model, and trainer
     datamodule = IMDBDataModule(config)
     datamodule.prepare_data()
     datamodule.setup()
+    # the vocab size is not deterministic in advance, so we need to assign it here
     config.vocab_size = datamodule.vocab_size
     model = TransformerEncoderModel(config)
     callbacks = [
@@ -93,6 +102,7 @@ def main():
             "test_size": len(datamodule.test_dataset),
         }
     )
+    # train
     trainer.fit(model=model, datamodule=datamodule)
     trainer.test(model=model, datamodule=datamodule, verbose=config.verbose)
     wandb.finish(quiet=True)
