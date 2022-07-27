@@ -24,8 +24,9 @@ def main():
     # data
     parser.add_argument("--label_noise", type=float, default=0.0)
     # model
+    # parser.add_argument("--vocab_size", type=int, default=10000)
     parser.add_argument("--embedding_dim", type=int, default=512)
-    parser.add_argument("--seq_len", type=int, default=512)
+    parser.add_argument("--max_seq_len", type=int, default=512)
     parser.add_argument("--num_layers", type=int, default=6)
     parser.add_argument("--num_heads", type=int, default=8)
     parser.add_argument("--dropout", type=float, default=0.0)
@@ -37,7 +38,7 @@ def main():
     )
     # training
     parser.add_argument("--batch_size", type=int, default=64)
-    parser.add_argument("--lr", type=float, default=3e-4)
+    parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--wd", type=float, default=0.0)
     parser.add_argument("--max_epochs", type=int, default=200)
     # experiment
