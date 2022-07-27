@@ -47,7 +47,7 @@ class TransformerEncoderModel(pl.LightningModule):
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=self.config.embedding_dim,
             nhead=self.config.num_heads,
-            dim_feedforward=self.config.embedding_dim * 4,
+            dim_feedforward=self.config.ff_dim,
             dropout=self.config.dropout,
             activation="relu",
         )
@@ -130,7 +130,7 @@ class TransformerEncoderModel(pl.LightningModule):
         opt = optim.Adam(
             self.parameters(), lr=self.config.lr, weight_decay=self.config.wd
         )
-        sch = optim.lr_scheduler.MultiStepLR(opt, milestones=[60, 120, 160], gamma=0.2)
+        sch = optim.lr_scheduler.MultiStepLR(opt, milestones=[30, 60, 80], gamma=0.2)
         return {
             "optimizer": opt,
             "lr_scheduler": {"scheduler": sch, "interval": "epoch", "frequency": 1},

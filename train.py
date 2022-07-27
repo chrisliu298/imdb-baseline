@@ -30,6 +30,7 @@ def main():
     # model
     parser.add_argument("--vocab_size", type=int, default=None)
     parser.add_argument("--embedding_dim", type=int, default=512)
+    parser.add_argument("--ff_dim", type=int, default=2048)
     parser.add_argument("--max_seq_len", type=int, default=512)
     parser.add_argument("--num_layers", type=int, default=6)
     parser.add_argument("--num_heads", type=int, default=8)
