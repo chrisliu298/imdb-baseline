@@ -24,7 +24,7 @@ class IMDBDataModule(LightningDataModule):
             x,
             padding="max_length",
             truncation=True,
-            max_length=self.config.seq_len,
+            max_length=self.config.max_seq_len,
             return_tensors="pt",
         )
         self.train_text_encoded = encode(train_data["text"])
