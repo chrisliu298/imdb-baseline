@@ -24,7 +24,7 @@ def main():
     # data
     parser.add_argument("--label_noise", type=float, default=0.0)
     # model
-    # parser.add_argument("--vocab_size", type=int, default=10000)
+    parser.add_argument("--vocab_size", type=int, default=None)
     parser.add_argument("--embedding_dim", type=int, default=512)
     parser.add_argument("--max_seq_len", type=int, default=512)
     parser.add_argument("--num_layers", type=int, default=6)
@@ -59,7 +59,7 @@ def main():
     datamodule = IMDBDataModule(config)
     datamodule.prepare_data()
     datamodule.setup()
-    config.vocab_size = datamodule.tokenizer.vocab_size
+    config.vocab_size = datamodule.vocab_size
     model = TransformerEncoderModel(config)
     callbacks = [
         ModelCheckpoint(
