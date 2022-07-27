@@ -33,7 +33,7 @@ class TransformerEncoderModel(pl.LightningModule):
         self.config = config
         self.embedding = nn.Embedding(self.config.vocab_size, self.config.embedding_dim)
         self.pos_embedding = PositionalEncoding(
-            self.config.embedding_dim, max_len=self.config.seq_len
+            self.config.embedding_dim, max_len=self.config.max_seq_len
         )
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=self.config.embedding_dim,
@@ -48,9 +48,9 @@ class TransformerEncoderModel(pl.LightningModule):
         self.fc = nn.Linear(self.config.embedding_dim, self.config.output_size)
 
     def forward(self, x, padding_mask=None):
-        mask = nn.Transformer.generate_square_subsequent_mask(self.config.seq_len).to(
-            self.device
-        )
+        mask = nn.Transformer.generate_square_subsequent_mask(
+            self.config.max_seq_len
+        ).to(self.device)
         x = x.long()
         x = self.embedding(x) * math.sqrt(self.config.embedding_dim)
         x = x.permute(1, 0, 2)
@@ -76,7 +76,7 @@ class TransformerEncoderModel(pl.LightningModule):
         return loss, acc
 
     def on_train_start(self):
-        model_info = summary(self, input_size=(1, self.config.seq_len), verbose=0)
+        model_info = summary(self, input_size=(1, self.config.max_seq_len), verbose=0)
         self.log(
             "total_params",
             torch.tensor(model_info.total_params, dtype=torch.float32),
