@@ -37,29 +37,35 @@ class TransformerEncoderModel(pl.LightningModule):
         )
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=self.config.embedding_dim,
-            nhead=self.config.nheads,
+            nhead=self.config.num_heads,
             dim_feedforward=self.config.embedding_dim * 4,
             dropout=self.config.dropout,
             activation="relu",
         )
         self.encoder = nn.TransformerEncoder(
-            encoder_layer=encoder_layer, num_layers=self.config.nlayers
+            encoder_layer=encoder_layer, num_layers=self.config.num_layers
         )
         self.fc = nn.Linear(self.config.embedding_dim, self.config.output_size)
 
-    def forward(self, x):
+    def forward(self, x, padding_mask=None):
         x = x.long()
-        mask = nn.Transformer.generate_square_subsequent_mask(x.size(1)).to(self.device)
         x = self.embedding(x) * math.sqrt(self.config.embedding_dim)
         x = x.permute(1, 0, 2)
         x = self.pos_embedding(x)
-        x = self.encoder(x, mask=mask)
+        mask = nn.Transformer.generate_square_subsequent_mask(x.size(1)).to(self.device)
+        if self.config.mask_type == "mask":
+            padding_mask = None
+        if self.config.mask_type == "padding_mask":
+            mask = None
+        if self.config.mask_type == "none":
+            mask = padding_mask = None
+        x = self.encoder(x, mask=mask, src_key_padding_mask=padding_mask)
         x = x[-1, :, :]  # use the last hidden state
         return self.fc(x)
 
     def evaluate(self, batch, stage=None):
-        x, y = batch
-        output = self(x)
+        x, padding_mask, y = batch
+        output = self(x, padding_mask)
         loss = F.cross_entropy(output, y)
         acc = accuracy(output.argmax(dim=1), y)
         if stage:
@@ -110,4 +116,7 @@ class TransformerEncoderModel(pl.LightningModule):
             self.parameters(), lr=self.config.lr, weight_decay=self.config.wd
         )
         sch = optim.lr_scheduler.MultiStepLR(opt, milestones=[60, 120, 160], gamma=0.2)
-        return {"optimizer": opt, "lr_scheduler": sch}
+        return {
+            "optimizer": opt,
+            "lr_scheduler": {"scheduler": sch, "interval": "epoch", "frequency": 1},
+        }
