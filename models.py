@@ -48,11 +48,13 @@ class TransformerEncoderModel(pl.LightningModule):
         self.fc = nn.Linear(self.config.embedding_dim, self.config.output_size)
 
     def forward(self, x, padding_mask=None):
+        mask = nn.Transformer.generate_square_subsequent_mask(self.config.seq_len).to(
+            self.device
+        )
         x = x.long()
         x = self.embedding(x) * math.sqrt(self.config.embedding_dim)
         x = x.permute(1, 0, 2)
         x = self.pos_embedding(x)
-        mask = nn.Transformer.generate_square_subsequent_mask(x.size(1)).to(self.device)
         if self.config.mask_type == "mask":
             padding_mask = None
         if self.config.mask_type == "padding_mask":
