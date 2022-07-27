@@ -37,7 +37,7 @@ def main():
     parser.add_argument(
         "--mask_type",
         type=str,
-        default="both",
+        default="none",
         choices=["both", "mask", "padding_mask", "none"],
     )
     # training
