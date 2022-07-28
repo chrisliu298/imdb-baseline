@@ -9,83 +9,10 @@ from torchinfo import summary
 from torchmetrics.functional import accuracy
 
 
-class PositionalEncoding(nn.Module):
-    """
-    https://pytorch.org/tutorials/beginner/transformer_tutorial.html
-    """
-
-    def __init__(self, d_model, dropout=0.1, max_len=5000):
-        super(PositionalEncoding, self).__init__()
-        self.dropout = nn.Dropout(p=dropout)
-
-        pe = torch.zeros(max_len, d_model)
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(
-            torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model)
-        )
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0).transpose(0, 1)
-        self.register_buffer("pe", pe)
-
-    def forward(self, x):
-        x = x + self.pe[: x.size(0), :]
-        return self.dropout(x)
-
-
-class TransformerEncoderModel(pl.LightningModule):
+class BaseModel(pl.LightningModule):
     def __init__(self, config):
         super().__init__()
-        self.save_hyperparameters()
         self.config = config
-        self.embedding = nn.Embedding(self.config.vocab_size, self.config.embedding_dim)
-        self.pos_embedding = PositionalEncoding(
-            self.config.embedding_dim,
-            dropout=self.config.dropout,
-            max_len=self.config.max_seq_len,
-        )
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=self.config.embedding_dim,
-            nhead=self.config.num_heads,
-            dim_feedforward=self.config.ff_dim,
-            dropout=self.config.dropout,
-            activation="relu",
-        )
-        self.encoder = nn.TransformerEncoder(
-            encoder_layer=encoder_layer, num_layers=self.config.num_layers
-        )
-        self.fc = nn.Linear(self.config.embedding_dim, self.config.output_size)
-
-    def forward(self, x, padding_mask=None):
-        # generate src_mask
-        mask = nn.Transformer.generate_square_subsequent_mask(
-            self.config.max_seq_len
-        ).to(self.device)
-        x = x.long()
-        x = self.embedding(x) * math.sqrt(self.config.embedding_dim)
-        x = x.permute(1, 0, 2)
-        x = self.pos_embedding(x)
-        # determine mask type
-        if self.config.mask_type == "mask":
-            padding_mask = None
-        if self.config.mask_type == "padding_mask":
-            mask = None
-        if self.config.mask_type == "none":
-            mask = padding_mask = None
-        x = self.encoder(x, mask=mask, src_key_padding_mask=padding_mask)
-        # use the last hidden state
-        x = x[-1, :, :]
-        return self.fc(x)
-
-    def evaluate(self, batch, stage=None):
-        x, padding_mask, y = batch
-        output = self(x, padding_mask)
-        loss = F.cross_entropy(output, y)
-        acc = accuracy(output.argmax(dim=1), y)
-        if stage:
-            self.log(f"{stage}_loss", loss, logger=True)
-            self.log(f"{stage}_acc", acc, logger=True)
-        return loss, acc
 
     def on_train_start(self):
         # log the number of parameters
@@ -130,8 +57,138 @@ class TransformerEncoderModel(pl.LightningModule):
         opt = optim.Adam(
             self.parameters(), lr=self.config.lr, weight_decay=self.config.wd
         )
-        sch = optim.lr_scheduler.MultiStepLR(opt, milestones=[30, 60, 80], gamma=0.2)
-        return {
-            "optimizer": opt,
-            "lr_scheduler": {"scheduler": sch, "interval": "epoch", "frequency": 1},
-        }
+        # sch = optim.lr_scheduler.MultiStepLR(opt, milestones=[30, 60, 80], gamma=0.2)
+        # return {
+        #     "optimizer": opt,
+        #     "lr_scheduler": {"scheduler": sch, "interval": "epoch", "frequency": 1},
+        # }
+        return opt
+
+
+class PositionalEncoding(nn.Module):
+    """
+    https://pytorch.org/tutorials/beginner/transformer_tutorial.html
+    """
+
+    def __init__(self, d_model, dropout=0.1, max_len=5000):
+        super(PositionalEncoding, self).__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model)
+        )
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0).transpose(0, 1)
+        self.register_buffer("pe", pe)
+
+    def forward(self, x):
+        x = x + self.pe[: x.size(0), :]
+        return self.dropout(x)
+
+
+class TransformerEncoder(BaseModel):
+    def __init__(self, config):
+        super().__init__(config)
+        self.save_hyperparameters()
+        self.config = config
+        self.embedding = nn.Embedding(config.vocab_size, config.embedding_dim)
+        self.pos_embedding = PositionalEncoding(
+            config.embedding_dim, dropout=config.dropout, max_len=config.max_seq_len
+        )
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=config.embedding_dim,
+            nhead=config.num_heads,
+            dim_feedforward=config.hidden_size,
+            dropout=config.dropout,
+            activation="relu",
+        )
+        self.encoder = nn.TransformerEncoder(
+            encoder_layer=encoder_layer, num_layers=config.num_layers
+        )
+        self.fc = nn.Linear(config.embedding_dim, config.output_size)
+
+    def forward(self, x, padding_mask=None):
+        # generate src_mask
+        mask = nn.Transformer.generate_square_subsequent_mask(
+            self.config.max_seq_len
+        ).to(self.device)
+        x = x.long()
+        x = self.embedding(x) * math.sqrt(self.config.embedding_dim)
+        x = x.permute(1, 0, 2)
+        x = self.pos_embedding(x)
+        # determine mask type
+        if self.config.mask_type == "mask":
+            padding_mask = None
+        if self.config.mask_type == "padding_mask":
+            mask = None
+        if self.config.mask_type == "none":
+            mask = padding_mask = None
+        x = self.encoder(x, mask=mask, src_key_padding_mask=padding_mask)
+        # use the last hidden state
+        x = x[-1, :, :]
+        return self.fc(x)
+
+    def evaluate(self, batch, stage=None):
+        x, padding_mask, y = batch
+        output = self(x, padding_mask)
+        loss = F.cross_entropy(output, y)
+        acc = accuracy(output.argmax(dim=1), y)
+        if stage:
+            self.log(f"{stage}_loss", loss, logger=True)
+            self.log(f"{stage}_acc", acc, logger=True)
+        return loss, acc
+
+
+class LSTM(BaseModel):
+    def __init__(self, config):
+        super().__init__(config)
+        self.save_hyperparameters()
+        self.config = config
+        self.embedding = nn.Embedding(config.vocab_size, config.embedding_dim)
+        self.lstm = nn.LSTM(
+            config.embedding_dim,
+            config.hidden_size,
+            num_layers=config.num_layers,
+            bidirectional=config.bidirectional,
+            dropout=config.dropout,
+        )
+        self.fc = nn.Linear(
+            config.hidden_size * (2 if self.config.bidirectional else 1),
+            config.output_size,
+        )
+
+    def forward(self, x):
+        batch_size = x.shape[0]
+        x = x.long()
+        x = self.embedding(x)
+        x = x.permute(1, 0, 2)
+        x, (h, _) = self.lstm(x, self.init_hidden(batch_size))
+        h = torch.cat([h[-2], h[-1]], dim=-1) if self.config.bidirectional else h[-1]
+        return self.fc(h)
+
+    def init_hidden(self, batch_size):
+        return (
+            torch.zeros(
+                self.config.num_layers * (2 if self.config.bidirectional else 1),
+                batch_size,
+                self.config.hidden_size,
+            ).to(self.device),
+            torch.zeros(
+                self.config.num_layers * (2 if self.config.bidirectional else 1),
+                batch_size,
+                self.config.hidden_size,
+            ).to(self.device),
+        )
+
+    def evaluate(self, batch, stage=None):
+        x, _, y = batch
+        output = self(x)
+        loss = F.cross_entropy(output, y)
+        acc = accuracy(output.argmax(dim=1), y)
+        if stage:
+            self.log(f"{stage}_loss", loss, logger=True)
+            self.log(f"{stage}_acc", acc, logger=True)
+        return loss, acc

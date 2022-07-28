@@ -14,8 +14,9 @@ from pytorch_lightning.callbacks import (
 from pytorch_lightning.loggers import WandbLogger
 
 from data import IMDBDataModule
-from models import TransformerEncoderModel
+from models import LSTM, TransformerEncoder
 
+MODELS = {"transformer": TransformerEncoder, "lstm": LSTM}
 # Due to the issue described in
 # https://stackoverflow.com/questions/62691279/how-to-disable-tokenizers-parallelism-true-false-warning
 # we need to disable tokenizer parallelism to avoid warnings
@@ -28,19 +29,23 @@ def main():
     # data
     parser.add_argument("--label_noise", type=float, default=0.0)
     # model
+    parser.add_argument(
+        "--model", type=str, default="transformer", choices=["transformer", "lstm"]
+    )
     parser.add_argument("--vocab_size", type=int, default=None)
     parser.add_argument("--embedding_dim", type=int, default=512)
-    parser.add_argument("--ff_dim", type=int, default=2048)
+    parser.add_argument("--hidden_size", type=int, default=2048)
     parser.add_argument("--max_seq_len", type=int, default=512)
     parser.add_argument("--num_layers", type=int, default=6)
-    parser.add_argument("--num_heads", type=int, default=8)
+    parser.add_argument("--num_heads", type=int, default=8)  # transformer only
     parser.add_argument("--dropout", type=float, default=0.0)
+    parser.add_argument("--bidirectional", action="store_true")  # lstm only
     parser.add_argument(
         "--mask_type",
         type=str,
         default="none",
         choices=["both", "mask", "padding_mask", "none"],
-    )
+    )  # transformer only
     # training
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--lr", type=float, default=1e-3)
@@ -70,7 +75,7 @@ def main():
     datamodule.setup()
     # the vocab size is not deterministic in advance, so we need to assign it here
     config.vocab_size = datamodule.vocab_size
-    model = TransformerEncoderModel(config)
+    model = MODELS[config.model](config)
     callbacks = [
         ModelCheckpoint(
             filename="{epoch}_{avg_val_acc}",
