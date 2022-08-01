@@ -22,6 +22,11 @@ class BaseModel(pl.LightningModule):
             torch.tensor(model_info.total_params, dtype=torch.float32),
             logger=True,
         )
+        # log data split sizes
+        datamodule = self.trainer.datamodule
+        self.log("train_size", float(len(datamodule.train_dataset)), logger=True)
+        self.log("val_size", float(len(datamodule.val_dataset)), logger=True)
+        self.log("test_size", float(len(datamodule.test_dataset)), logger=True)
 
     def training_step(self, batch, batch_idx):
         loss, acc = self.evaluate(batch, "train")
