@@ -9,9 +9,9 @@ from tokenizers import Tokenizer, normalizers
 from tokenizers.models import WordPiece
 from tokenizers.normalizers import NFD, Lowercase, StripAccents
 from tokenizers.pre_tokenizers import Whitespace
-from tokenizers.processors import BertProcessing, TemplateProcessing
+from tokenizers.processors import TemplateProcessing
 from tokenizers.trainers import WordPieceTrainer
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader, Subset, TensorDataset
 from transformers import AutoTokenizer
 
 
@@ -95,8 +95,8 @@ class IMDBDataModule(LightningDataModule):
         )
         indices = np.arange(len(train_dataset))
         train_idx, val_idx = train_test_split(indices, test_size=0.2, shuffle=True)
-        self.train_dataset = TensorDataset(*train_dataset[train_idx])
-        self.val_dataset = TensorDataset(*train_dataset[val_idx])
+        self.train_dataset = Subset(train_dataset, train_idx)
+        self.val_dataset = Subset(train_dataset, val_idx)
         self.test_dataset = TensorDataset(
             test_input_ids, test_attention_mask, test_labels
         )
