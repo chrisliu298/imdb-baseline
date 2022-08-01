@@ -120,21 +120,15 @@ class TransformerEncoder(BaseModel):
         mask = nn.Transformer.generate_square_subsequent_mask(
             self.config.max_seq_len
         ).to(self.device)
-        x = x.long()
-        x = self.embedding(x) * math.sqrt(self.config.embedding_dim)
-        x = x.permute(1, 0, 2)
-        x = self.pos_embedding(x)
-        # determine mask type
-        if self.config.mask_type == "mask":
-            padding_mask = None
-        if self.config.mask_type == "padding_mask":
-            mask = None
-        if self.config.mask_type == "none":
-            mask = padding_mask = None
-        x = self.encoder(x, mask=mask, src_key_padding_mask=padding_mask)
+        out = x.long()
+        out = self.embedding(out) * math.sqrt(self.config.embedding_dim)
+        out = out.permute(1, 0, 2)
+        out = self.pos_embedding(out)
+        out = self.encoder(out, mask=mask, src_key_padding_mask=padding_mask)
         # use the last hidden state
-        x = x[-1, :, :]
-        return self.fc(x)
+        out = out[0, :]
+        out = self.fc(out)
+        return out
 
     def evaluate(self, batch, stage=None):
         x, padding_mask, y = batch
@@ -167,12 +161,13 @@ class LSTM(BaseModel):
 
     def forward(self, x):
         batch_size = x.shape[0]
-        x = x.long()
-        x = self.embedding(x)
-        x = x.permute(1, 0, 2)
-        x, (h, _) = self.lstm(x, self.init_hidden(batch_size))
+        out = x.long()
+        out = self.embedding(out)
+        out = out.permute(1, 0, 2)
+        out, (h, _) = self.lstm(out, self.init_hidden(batch_size))
         h = torch.cat([h[-2], h[-1]], dim=-1) if self.config.bidirectional else h[-1]
-        return self.fc(h)
+        out = self.fc(h)
+        return out
 
     def init_hidden(self, batch_size):
         return (

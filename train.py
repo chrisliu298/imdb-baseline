@@ -32,6 +32,7 @@ def main():
     parser.add_argument(
         "--model", type=str, default="transformer", choices=["transformer", "lstm"]
     )
+    parser.add_argument("--output_size", type=int, default=2)
     parser.add_argument("--vocab_size", type=int, default=None)
     parser.add_argument("--embedding_dim", type=int, default=512)
     parser.add_argument("--hidden_size", type=int, default=2048)
@@ -40,12 +41,6 @@ def main():
     parser.add_argument("--num_heads", type=int, default=8)  # transformer only
     parser.add_argument("--dropout", type=float, default=0.0)
     parser.add_argument("--bidirectional", action="store_true")  # lstm only
-    parser.add_argument(
-        "--mask_type",
-        type=str,
-        default="none",
-        choices=["both", "mask", "padding_mask", "none"],
-    )  # transformer only
     # training
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--lr", type=float, default=1e-3)
@@ -65,37 +60,36 @@ def main():
         os.environ["WANDB_SILENT"] = "True"
         warnings.filterwarnings("ignore")
         logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
-    # assign additional args
-    config.output_size = 2
     # setup data module, model, and trainer
     datamodule = IMDBDataModule(config)
     # the vocab size is not deterministic in advance, so we need to assign it here
     config.vocab_size = datamodule.vocab_size
     model = MODELS[config.model](config)
-    callbacks = [
+    callbacks = []
+    callbacks.append(
         ModelCheckpoint(
             filename="{epoch}_{avg_val_acc}",
             monitor="avg_val_acc",
             save_top_k=5,
             mode="max",
-        ),
-        LearningRateMonitor(logging_interval="epoch"),
-    ]
+        )
+    )
+    callbacks.append(LearningRateMonitor(logging_interval="epoch"))
     if not config.verbose:
         callbacks.append(TQDMProgressBar(refresh_rate=0))
-    logger = WandbLogger(
-        offline=not config.wandb,
-        project=config.project_id,
-        entity="chrisliu298",
-        config=config,
-    )
     trainer = Trainer(
         gpus=-1,
         callbacks=callbacks,
         max_epochs=config.max_epochs,
         check_val_every_n_epoch=1,
         benchmark=True,
-        logger=logger,
+        logger=WandbLogger(
+            offline=not config.wandb,
+            project=config.project_id,
+            entity="chrisliu298",
+            config=config,
+        ),
+        profiler="simple",
     )
     # train
     trainer.fit(model=model, datamodule=datamodule)
