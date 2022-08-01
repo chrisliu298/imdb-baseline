@@ -71,8 +71,6 @@ def main():
     config.output_size = 2
     # setup data module, model, and trainer
     datamodule = IMDBDataModule(config)
-    datamodule.prepare_data()
-    datamodule.setup()
     # the vocab size is not deterministic in advance, so we need to assign it here
     config.vocab_size = datamodule.vocab_size
     model = MODELS[config.model](config)

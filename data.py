@@ -19,6 +19,8 @@ class IMDBDataModule(LightningDataModule):
     def __init__(self, config):
         super().__init__()
         self.config = config
+        self.prepare_data()
+        self.setup()
 
     def prepare_data(self):
         # download data
