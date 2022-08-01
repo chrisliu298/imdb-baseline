@@ -66,8 +66,6 @@ def main():
         warnings.filterwarnings("ignore")
         logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
     # assign additional args
-    config.dataset = config.project_id.split("-")[1]
-    config.model = config.project_id.split("-")[2]
     config.output_size = 2
     # setup data module, model, and trainer
     datamodule = IMDBDataModule(config)
